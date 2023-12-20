@@ -1,0 +1,24 @@
+{% extends "layout.html" %}
+
+{% block title %}
+History
+{% endblock %}
+
+{% block main %}
+<h1 class="lines-effect">Natural Catastrophes Alert: Event History</h1>
+<div class="container" id="events-container">
+  {% for index, event in events %}
+    <div class="event {% if index >= 10 %}hidden{% endif %}">
+      <h3 id="title_{{ index + 1 }}" class="pt-5 text-center">{{ event.title }}</h3>
+      {% if event.geometries and event.geometries[0] and event.geometries[0].date %}
+        <p id="date_{{ index + 1 }}" class="text-center">{{ event.geometries[0].date | format_date }}</p>
+      {% else %}
+        <p id="date_{{ index + 1 }}" class="text-center">No date available</p>
+      {% endif %}
+      <hr class="line" />
+    </div>
+  {% endfor %}
+  <button id="load-more-btn" class="btn btn-primary mt-3 {% if events|length <= 10 %}hidden{% endif %}">Watch More</button>
+</div>
+<script src="../static/history.js"></script>
+{% endblock %}

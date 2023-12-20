@@ -1,0 +1,186 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Map of Catastrophes
+{% endblock %}
+
+{% block main %}
+<!-- Title -->
+<h1 class="lines-effect">Natural Catastrophes Alert: Map With Events</h1>
+
+<!-- Main Content Block -->
+<div id="map-container" style="top: 5px; width: 80%; height: calc(85vh - 50px); margin-left: 10%;"></div>
+
+<!-- Leaflet and Font Awesome Scripts and Styles -->
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" integrity="sha512-..."/>
+
+<script>
+  // Map initialization
+  var bounds = L.bounds([-90, -180], [90, -180]);
+  var map = L.map('map-container', { minZoom: 2, maxZoom: 18 }).setView([0, -75], 2);
+
+  // Set map bounds
+  var southWest = L.latLng(-90, -180);
+  var northEast = L.latLng(90, 180);
+  var bounds = L.latLngBounds(southWest, northEast);
+
+  // Set maximum bounds on the map
+  map.setMaxBounds(bounds);
+
+  // Disable dragging outside of bounds
+  map.on('drag', function() {
+    map.panInsideBounds(bounds, { animate: false });
+  });
+
+  // Add OpenStreetMap layer
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map);
+
+  // Events data
+  var eventsByCategory = {{ events_by_category | tojson | safe }};
+  
+  // Define colors for each category
+  var categoryColors = {
+    'Drought': '#634f0a',
+    'Dust and Haze': '#696761',
+    'Earthquakes': '#c9b779',
+    'Floods': '#003cff',
+    'Landslides': '#e3dba6',
+    'Manmade': '#000000',
+    'Sea and Lake Ice': '#1b64cc',
+    'Severe Storms': '#3c4545',
+    'Snow': '#91f2f2',
+    'Temperature Extremes': '#f5fa73',
+    'Volcanoes': '#573a27',
+    'Water Color': '#7cfa73',
+    'Wildfires': '#cc4f29'
+  };
+
+  // Iterate over categories and add markers
+  Object.keys(eventsByCategory).forEach(addMarkersForCategory);
+
+  function addMarkersForCategory(category) {
+    var categoryEvents = eventsByCategory[category];
+
+    // Ordenar los eventos por fecha de forma descendente
+    categoryEvents.sort(function(a, b) {
+      return new Date(b.geometries[0].date) - new Date(a.geometries[0].date);
+    });
+
+    var markersGroup = L.layerGroup();
+
+    categoryEvents.forEach(addMarker);
+
+    map.addLayer(markersGroup);
+    L.control.layers(null, { [category]: markersGroup }, { collapsed: false, icon: getLayerControlIcon(category) }).addTo(map);
+
+    function addMarker(catastrophe) {
+      if (catastrophe.geometries && catastrophe.geometries.length > 0) {
+        var coordinates = [
+          catastrophe.geometries[0].coordinates[1],  // latitude
+          catastrophe.geometries[0].coordinates[0]   // longitude
+        ];
+
+        // Use a custom icon for each category
+        var icon = getIcon(category);
+
+        var marker = L.marker(coordinates, { icon: icon }).addTo(markersGroup);
+
+        // Construct the popup content with title and date
+        var popupContent = `<b>${catastrophe.title}</b><br>Date: ${new Date(catastrophe.geometries[0].date).toLocaleString()}`;
+        marker.bindPopup(popupContent);
+      } else {
+        console.warn('No coordinates available for a catastrophe:', catastrophe.title);
+      }
+    }
+  }
+
+
+  // Function to get icon based on category
+  function getIcon(category) {
+    var iconSize = [0, 0] || 'rgba(255, 255, 255, 0.7)'; 
+    var fillColor = categoryColors[category] || 'black'; 
+
+    // Define the icons for each category
+    var icons = {
+      'Wildfires': '<i class="fa-solid fa-fire" style="font-size: 20px; color: ' + fillColor + ';"></i>',
+      'Volcanoes': '<i class="fa-solid fa-mountain" style="font-size: 20px; color: ' + fillColor + ';"></i>',
+      'Drought': '<i class="fa-solid fa-sun-plant-wilt" style="font-size: 20px; color: ' + fillColor + ';"></i>',
+      'Dust and Haze': '<i class="fa-solid fa-smog" style="font-size: 20px; color: ' + fillColor + ';"></i>',
+      'Earthquakes': '<i class="fa-solid fa-house-crack" style="font-size: 20px; color: ' + fillColor + ';"></i>',
+      'Floods': '<i class="fa-solid fa-house-flood-water" style="font-size: 20px; color: ' + fillColor + ';"></i>',
+      'Landslides': '<i class="fa-solid fa-hill-rockslide" style="font-size: 20px; color: ' + fillColor + ';"></i>',
+      'Manmade': '<i class="fa-solid fa-person" style="font-size: 20px; color: ' + fillColor + ';"></i>',
+      'Sea and Lake Ice': '<i class="fa-solid fa-industry" style="font-size: 20px; color: ' + fillColor + '; transform: rotate(180deg);"></i>',
+      'Severe Storms': '<i class="fa-solid fa-poo-storm" style="font-size: 20px; color: ' + fillColor + ';"></i>',
+      'Snow': '<i class="fa-solid fa-snowflake" style="font-size: 20px; color: ' + fillColor + ';"></i>',
+      'Temperature Extremes': '<i class="fa-solid fa-temperature-full" style="font-size: 20px; color: ' + fillColor + ';"></i>',
+      'Water Color': '<i class="fa-solid fa-water" style="font-size: 20px; color: ' + fillColor + ';"></i>',
+    };
+
+    // Check if the category has an icon defined
+    if (icons[category]) {
+      return L.divIcon({
+        className: 'leaflet-div-icon',
+        iconSize: iconSize,
+        iconAnchor: [iconSize[0] / 2, iconSize[1]],
+        popupAnchor: [0, -iconSize[1]],
+        html: icons[category]
+      });
+    }
+
+    // If there is no icon defined for the category, use a circle with the corresponding color
+    return L.divIcon({
+      className: 'leaflet-div-icon',
+      iconSize: iconSize,
+      iconAnchor: [iconSize[0] / 2, iconSize[1]],
+      popupAnchor: [0, -iconSize[1]],
+      html: '<div style="width: ' + iconSize[0] + 'px; height: ' + iconSize[1] + 'px; border-radius: 50%; background-color: ' + fillColor + ';"></div>'
+    });
+  }
+
+  // Function to get layer control icon based on category
+  function getLayerControlIcon(category) {
+    var iconSize = [20, 20]; // Size of the smallest icon
+    var fillColor = categoryColors[category] || 'black'; // Default color if no assignment is present
+
+    // Define the icons for each category
+    var icons = {
+      'Wildfires': '<i class="fa-solid fa-fire" style="font-size: 20px; color: ' + fillColor + ';"></i>',
+      'Volcanoes': '<i class="fa-solid fa-mountain" style="font-size: 20px; color: ' + fillColor + ';"></i>',
+      'Drought': '<i class="fa-solid fa-sun-plant-wilt" style="font-size: 20px; color: ' + fillColor + ';"></i>',
+      'Dust and Haze': '<i class="fa-solid fa-wind" style="font-size: 20px; color: ' + fillColor + ';"></i>',
+      'Earthquakes': '<i class="fa-solid fa-house-crack" style="font-size: 20px; color: ' + fillColor + ';"></i>',
+      'Floods': '<i class="fa-solid fa-house-flood-water" style="font-size: 20px; color: ' + fillColor + ';"></i>',
+      'Landslides': '<i class="fa-solid fa-hill-rockslide" style="font-size: 20px; color: ' + fillColor + ';"></i>',
+      'Manmade': '<i class="fa-solid fa-person" style="font-size: 20px; color: ' + fillColor + ';"></i>',
+      'Sea and Lake Ice': '<i class="fa-solid fa-icicles" style="font-size: 20px; color: ' + fillColor + ';"></i>',
+      'Severe Storms': '<i class="fa-solid fa-poo-storm" style="font-size: 20px; color: ' + fillColor + ';"></i>',
+      'Snow': '<i class="fa-solid fa-snowflake" style="font-size: 20px; color: ' + fillColor + ';"></i>',
+      'Temperature Extremes': '<i class="fa-solid fa-temperature-full" style="font-size: 20px; color: ' + fillColor + ';"></i>',
+      'Water Color': '<i class="fa-solid fa-water" style="font-size: 20px; color: ' + fillColor + ';"></i>',
+    };
+
+    // Check if the category has an icon defined
+    if (icons[category]) {
+      return {
+        html: icons[category],
+        bgPos: [0, 0],
+        iconAnchor: [iconSize[0] / 2, iconSize[1]],
+        className: 'leaflet-control-layers-icon'
+      };
+    }
+
+    // If there is no icon defined for the category, use a circle with the corresponding color
+    return {
+      html: '<div style="width: ' + iconSize[0] + 'px; height: ' + iconSize[1] + 'px; border-radius: 50%; background-color: ' + fillColor + ';"></div>',
+      bgPos: [0, 0],
+      iconAnchor: [iconSize[0] / 2, iconSize[1]],
+      className: 'leaflet-control-layers-icon'
+    };
+  }
+</script>
+{% endblock %}
